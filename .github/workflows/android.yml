@@ -1,0 +1,63 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # mirror the separation model in this repo so the app can download it from here
+      - name: Model mirror
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view model >/dev/null 2>&1; then
+            curl -fsSL -o Kim_Vocal_2.onnx https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_2.onnx
+            gh release create model Kim_Vocal_2.onnx --prerelease --title "نموذج العزل" --notes "UVR MDX-Net Kim_Vocal_2. التطبيق يحمّله تلقائيًا أول مرة."
+          fi
+
+      - name: Keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/azl.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/azl.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::KEYSTORE_B64 secret is missing, the APK is signed with a temporary key"
+          fi
+
+      - name: Build APK
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Rename
+        run: cp android/app/build/outputs/apk/release/app-release.apk "azl-v1.0.${{ github.run_number }}.apk"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: عزل 1.0.${{ github.run_number }}
+          make_latest: true
+          files: azl-v1.0.${{ github.run_number }}.apk
+          body: |
+            نزّل ملف **azl-v1.0.${{ github.run_number }}.apk** تحت، وافتحه في جوالك عشان تثبّته.
+            أول مرة تعزل فيها، التطبيق يحمّل نموذج العزل (67 ميقا) مرة وحدة بس.
