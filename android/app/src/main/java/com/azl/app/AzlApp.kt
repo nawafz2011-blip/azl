@@ -25,6 +25,10 @@ class AzlApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // صباحي / ليلي / تلقائي
+        androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(
+            getSharedPreferences("azl", Context.MODE_PRIVATE)
+                .getInt("theme", androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM))
         createChannels()
         thread(name = "engine-init") {
             try {

@@ -106,7 +106,7 @@ class SeparationService : Service() {
         val b = NotificationCompat.Builder(this, AzlApp.CHANNEL_WORK)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(s.title.ifEmpty { getString(R.string.app_name) })
-            .setContentText(s.stage)
+            .setContentText(if (s.eta.isNotEmpty()) "${s.stage} باقي ${s.eta}" else s.stage)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(openApp())

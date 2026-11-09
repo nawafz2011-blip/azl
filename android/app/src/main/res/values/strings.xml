@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">عزل</string>
-    <string name="tagline">أزل الموسيقى من أي مقطع، أو افصل الصوت عن الموسيقى. كله داخل جوالك.</string>
+    <string name="tagline">أزل الموسيقى أو افصل الصوت، كله داخل جوالك</string>
     <string name="mode_speech">إزالة الموسيقى</string>
     <string name="mode_song">فصل أغنية</string>
-    <string name="hint_speech">يبقى الكلام بس. إذا كان فيديو، يرجع لك الفيديو نفسه بدون موسيقى.</string>
-    <string name="hint_song">يطلع لك ملفين: الصوت لحاله والموسيقى لحالها.</string>
-    <string name="pick_file">اختر ملف صوت أو فيديو من جوالك</string>
-    <string name="url_hint">أو حط رابط (يوتيوب، تيك توك…)</string>
+    <string name="hint_speech">يبقى الكلام بس، والفيديو يرجع بدون موسيقى</string>
+    <string name="hint_song">الصوت لحاله والموسيقى لحالها</string>
+    <string name="pick_file">اختر صوت أو فيديو من جوالك</string>
+    <string name="pick_sub">mp4 · mp3 · m4a · wav وغيرها</string>
+    <string name="url_hint">ألصق رابط يوتيوب أو تيك توك…</string>
     <string name="sites">يوتيوب · تيك توك · إنستقرام · X · فيسبوك وغيرها. وتقدر تشارك المقطع للتطبيق مباشرة.</string>
     <string name="best_quality">جودة أعلى (أبطأ ٣ مرات تقريبًا)</string>
     <string name="start">ابدأ العزل</string>
-    <string name="bg_hint">تقدر تطلع من التطبيق، والعزل يكمل في الخلفية.</string>
-    <string name="saved_to">انحفظت في الجوال: الصوت في Music/عزل، والفيديو في Movies/عزل.</string>
+    <string name="bg_hint">تقدر تطلع من التطبيق، والعزل يكمل وينبهك لما يخلص</string>
+    <string name="saved_to">انحفظت في الجوال داخل مجلد «عزل»: الصوت في الموسيقى، والفيديو في الأفلام.</string>
 </resources>

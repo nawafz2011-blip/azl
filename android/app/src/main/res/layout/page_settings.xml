@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="20dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="16dp"
+            android:paddingBottom="4dp">
+
+            <TextView style="@style/PageTitle" android:text="الإعدادات" />
+        </LinearLayout>
+
+        <!-- update -->
+        <LinearLayout
+            android:id="@+id/cardUpdate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_highlight"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/txtUpdate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/ink"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtUpdateSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="يتحمّل ويتثبّت من هنا"
+                    android:textColor="@color/muted"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnUpdate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="تحديث"
+                app:cornerRadius="11dp" />
+        </LinearLayout>
+
+        <TextView style="@style/Label" android:text="المظهر" />
+
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/groupTheme"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:selectionRequired="true"
+            app:singleSelection="true">
+
+            <Button android:id="@+id/themeLight" style="@style/Seg" android:text="☀️ صباحي" />
+            <Button android:id="@+id/themeDark" style="@style/Seg" android:text="🌙 ليلي" />
+            <Button android:id="@+id/themeAuto" style="@style/Seg" android:text="⚙️ تلقائي" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <TextView style="@style/Label" android:text="جودة العزل" />
+
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/groupQuality"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:selectionRequired="true"
+            app:singleSelection="true">
+
+            <Button android:id="@+id/qualityFast" style="@style/Seg" android:text="⚡ سريع" />
+            <Button android:id="@+id/qualityBest" style="@style/Seg" android:text="✨ جودة أعلى" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <TextView
+            android:id="@+id/txtQualityHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:layout_marginHorizontal="4dp"
+            android:textColor="@color/muted"
+            android:textSize="12sp" />
+
+        <TextView style="@style/Label" android:text="عام" />
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout style="@style/Row">
+
+                    <TextView style="@style/RowText" android:text="حفظ الفيديو بدون موسيقى" />
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switchVideo"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <View style="@style/Divider" />
+
+                <LinearLayout style="@style/Row">
+
+                    <TextView style="@style/RowText" android:text="مكان الحفظ" />
+
+                    <TextView style="@style/RowValue" android:text="مجلد «عزل»" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView style="@style/Label" android:text="عن التطبيق" />
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout style="@style/Row">
+
+                    <TextView style="@style/RowText" android:text="الإصدار" />
+
+                    <TextView android:id="@+id/txtVersion" style="@style/RowValue" />
+                </LinearLayout>
+
+                <View style="@style/Divider" />
+
+                <LinearLayout
+                    android:id="@+id/rowModels"
+                    style="@style/Row"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextView style="@style/RowText" android:text="مسح نماذج العزل المحمّلة" />
+
+                    <TextView android:id="@+id/txtModels" style="@style/RowValue" />
+                </LinearLayout>
+
+                <View style="@style/Divider" />
+
+                <LinearLayout
+                    android:id="@+id/rowSource"
+                    style="@style/Row"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextView style="@style/RowText" android:text="الكود المصدري على GitHub" />
+
+                    <TextView style="@style/RowValue" android:text="↗" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+</ScrollView>

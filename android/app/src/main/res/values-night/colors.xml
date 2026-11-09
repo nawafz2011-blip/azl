@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#121416</color>
-    <color name="card">#1B1E21</color>
-    <color name="ink">#ECEFF1</color>
-    <color name="muted">#9AA1A8</color>
-    <color name="line">#2C3035</color>
+    <!-- ليلي -->
+    <color name="bg">#0F1214</color>
+    <color name="card">#181C1F</color>
+    <color name="card2">#1F2427</color>
+    <color name="ink">#EEF1F2</color>
+    <color name="muted">#8E979D</color>
+    <color name="line">#2A3034</color>
     <color name="accent">#2DD4BF</color>
-    <color name="accent_soft">#163532</color>
+    <color name="accent_soft">#123532</color>
+    <color name="accent_ink">#04201D</color>
+    <color name="dash">#33403F</color>
+    <color name="wave_off">#5B6870</color>
     <color name="danger">#F97066</color>
     <color name="danger_soft">#3A1D1B</color>
 </resources>

@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#F6F5F1</color>
+    <!-- صباحي -->
+    <color name="bg">#F5F6F4</color>
     <color name="card">#FFFFFF</color>
-    <color name="ink">#1B1D1F</color>
-    <color name="muted">#6B6F75</color>
-    <color name="line">#E4E2DC</color>
-    <color name="accent">#0F766E</color>
-    <color name="accent_soft">#E3F2EF</color>
+    <color name="card2">#EEF1EF</color>
+    <color name="ink">#16191B</color>
+    <color name="muted">#6B7378</color>
+    <color name="line">#E2E6E3</color>
+    <color name="accent">#0F9D8F</color>
+    <color name="accent_soft">#DDF3EF</color>
+    <color name="accent_ink">#FFFFFF</color>
+    <color name="dash">#C9D6D3</color>
+    <color name="wave_off">#B5BDC1</color>
     <color name="danger">#B42318</color>
     <color name="danger_soft">#FDECEA</color>
-    <color name="ic_bg">#0F766E</color>
+    <color name="ic_bg">#0F9D8F</color>
 </resources>
