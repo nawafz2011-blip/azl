@@ -232,12 +232,60 @@ class MainActivity : AppCompatActivity() {
         runCatching { startActivity(i) }.onFailure { toast("ما فيه تطبيق يفتح الملف") }
     }
 
+    private var pendingUpdate: Updater.Update? = null
+    private var updating = false
+
     private fun checkUpdate() {
         lifecycleScope.launch {
             val u = withContext(Dispatchers.IO) { Updater.check() } ?: return@launch
+            pendingUpdate = u
             b.cardUpdate.isVisible = true
             b.txtUpdate.text = "فيه نسخة جديدة: ${u.version}"
-            b.btnUpdate.setOnClickListener { open(Intent(Intent.ACTION_VIEW, Uri.parse(u.apkUrl))) }
+            b.btnUpdate.setOnClickListener { installUpdate() }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // back from "allow installing apps" settings: carry on automatically
+        if (askedInstallPermission && packageManager.canRequestPackageInstalls()) {
+            askedInstallPermission = false
+            installUpdate()
+        }
+    }
+
+    private var askedInstallPermission = false
+
+    /** Download the new APK inside the app, then open the system installer: it updates in place. */
+    private fun installUpdate() {
+        val u = pendingUpdate ?: return
+        if (updating) return
+        if (!packageManager.canRequestPackageInstalls()) {
+            toast("اسمح لـ «عزل» بتثبيت التحديثات، وارجع للتطبيق")
+            askedInstallPermission = true
+            open(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+            return
+        }
+        updating = true
+        b.btnUpdate.isEnabled = false
+        b.txtUpdate.text = "جاري تحميل التحديث…"
+        lifecycleScope.launch {
+            val apk = runCatching {
+                withContext(Dispatchers.IO) {
+                    Updater.download(this@MainActivity, u.apkUrl) { p ->
+                        runOnUiThread { b.txtUpdate.text = "جاري تحميل التحديث… ${(p * 100).toInt()}%" }
+                    }
+                }
+            }.getOrNull()
+            updating = false
+            b.btnUpdate.isEnabled = true
+            if (apk == null) {
+                b.txtUpdate.text = "تعذّر تحميل التحديث. اضغط وجرّب مرة ثانية"
+                return@launch
+            }
+            b.txtUpdate.text = "جاهز للتثبيت: ${u.version}"
+            val uri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "$packageName.files", apk)
+            open(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive"))
         }
     }
 

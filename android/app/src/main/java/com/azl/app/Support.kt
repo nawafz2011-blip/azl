@@ -175,6 +175,31 @@ object Updater {
 
     data class Update(val version: String, val apkUrl: String)
 
+    /** Downloads the new APK into the app's cache; returns the file. */
+    fun download(ctx: Context, url: String, onProgress: (Float) -> Unit): File {
+        val dir = File(ctx.cacheDir, "updates").apply { deleteRecursively(); mkdirs() }
+        val out = File(dir, "azl.apk")
+        val c = URL(url).openConnection() as HttpURLConnection
+        c.connectTimeout = 20000; c.readTimeout = 30000
+        c.instanceFollowRedirects = true
+        if (c.responseCode != 200) throw RuntimeException("HTTP ${c.responseCode}")
+        val total = c.contentLengthLong
+        c.inputStream.use { input ->
+            out.outputStream().use { o ->
+                val buf = ByteArray(1 shl 16)
+                var done = 0L
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    o.write(buf, 0, n)
+                    done += n
+                    if (total > 0) onProgress(done.toFloat() / total)
+                }
+            }
+        }
+        return out
+    }
+
     fun check(): Update? = runCatching {
         val c = URL(API).openConnection() as HttpURLConnection
         c.setRequestProperty("Accept", "application/vnd.github+json")
