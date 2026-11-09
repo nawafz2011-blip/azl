@@ -76,8 +76,11 @@ object Engine {
                 PcmFileSource(mixPcm).use { src ->
                     PcmFileWriter(voicePcm).use { vw ->
                         PcmFileWriter(musicPcm).use { mw ->
-                            sep.separate(src, { v, m, n -> vw.write(v, n); mw.write(m, n) },
-                                { p -> JobRepo.update { it.copy(progress = p) } }, ::cancelled)
+                            val t0 = System.currentTimeMillis()
+                            sep.separate(src, { v, m, n -> vw.write(v, n); mw.write(m, n) }, { p ->
+                                val left = ((System.currentTimeMillis() - t0) / 1000.0 * (1 - p) / p).toLong()
+                                JobRepo.update { it.copy(progress = p, stage = "جاري عزل الصوت عن الموسيقى… باقي ${fmtEta(left)}") }
+                            }, ::cancelled)
                         }
                     }
                 }
@@ -144,12 +147,15 @@ object Engine {
     }
 
     private fun download(url: String, mode: Mode, work: File): Pair<File, String> {
-        JobRepo.update { it.copy(stage = "جاري تحميل المقطع…", progress = 0f) }
+        JobRepo.update { it.copy(stage = "جاري تحميل المقطع…", progress = -1f) }
         val req = YoutubeDLRequest(url).apply {
             addOption("--no-playlist")
             addOption("-o", "${work.absolutePath}/source.%(ext)s")
             addOption("--no-simulate")
             addOption("--print", "after_move:title")
+            // --print hides the progress bar; bring it back so the percentage shows
+            addOption("--progress")
+            addOption("--newline")
             if (mode == Mode.SPEECH) {
                 addOption("-f", "bv*+ba/b")
                 addOption("-S", "res:1080,vcodec:h264,acodec:aac,ext:mp4:m4a")
@@ -161,8 +167,11 @@ object Engine {
         val pid = UUID.randomUUID().toString()
         JobRepo.processId = pid
         val resp = try {
-            YoutubeDL.getInstance().execute(req, pid) { progress, _, _ ->
-                if (progress >= 0) JobRepo.update { it.copy(progress = progress / 100f) }
+            YoutubeDL.getInstance().execute(req, pid) { progress, eta, _ ->
+                if (progress > 0) JobRepo.update {
+                    it.copy(progress = progress / 100f,
+                        stage = if (eta > 0) "جاري تحميل المقطع… باقي ${fmtEta(eta)}" else "جاري تحميل المقطع…")
+                }
             }
         } catch (e: Exception) {
             if (cancelled()) throw CancelledException()
@@ -208,6 +217,8 @@ object Engine {
             if (it.moveToFirst()) it.getString(0) else null
         }
     }.getOrNull() ?: uri.lastPathSegment
+
+    private fun fmtEta(s: Long): String = if (s < 60) "$s ث" else "${s / 60} د ${s % 60} ث"
 
     private fun safeName(title: String): String =
         title.replace(Regex("[\\\\/:*?\"<>|\\n\\r]"), "_").trim().take(80).ifEmpty { "عزل" }
