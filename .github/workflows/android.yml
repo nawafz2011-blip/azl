@@ -32,21 +32,8 @@ jobs:
             gh release create model Kim_Vocal_2.onnx --prerelease --title "نموذج العزل" --notes "UVR MDX-Net Kim_Vocal_2. التطبيق يحمّله تلقائيًا أول مرة."
           fi
 
-      - name: Keystore
-        env:
-          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
-        run: |
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/azl.jks"
-            echo "KEYSTORE_FILE=$RUNNER_TEMP/azl.jks" >> "$GITHUB_ENV"
-          else
-            echo "::warning::KEYSTORE_B64 secret is missing, the APK is signed with a temporary key"
-          fi
-
       - name: Build APK
         working-directory: android
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Rename

@@ -5,7 +5,6 @@ plugins {
 
 // GitHub Actions gives each build a number: it becomes the version (1.0.<n>).
 val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-val keystoreFile: String? = System.getenv("KEYSTORE_FILE")
 
 android {
     namespace = "com.azl.app"
@@ -20,21 +19,20 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
+    // مفتاح توقيع ثابت: كل النسخ تنبني بنفس المفتاح، فالتحديث ينزل فوق القديم
     signingConfigs {
         create("release") {
-            if (keystoreFile != null) {
-                storeFile = file(keystoreFile)
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS") ?: "azl"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
-            }
+            storeFile = file("release.jks")
+            storePassword = "9710b8644535bdbd5873fbde85fb9036"
+            keyAlias = "azl"
+            keyPassword = "9710b8644535bdbd5873fbde85fb9036"
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName(if (keystoreFile != null) "release" else "debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
