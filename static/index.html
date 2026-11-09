@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>عزل — فصل الصوت عن الموسيقى</title>
+<meta name="description" content="أزل الموسيقى من أي مقطع أو افصل الصوت عن الموسيقى في الأغاني بالذكاء الاصطناعي.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f5f1; --card:#ffffff; --ink:#1b1d1f; --muted:#6b6f75; --line:#e4e2dc;
+  --accent:#0f766e; --accent-ink:#ffffff; --accent-soft:#e3f2ef; --danger:#b42318; --danger-soft:#fdecea;
+  --radius:16px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121416; --card:#1b1e21; --ink:#eceff1; --muted:#9aa1a8; --line:#2c3035;
+    --accent:#2dd4bf; --accent-ink:#06201d; --accent-soft:#163532; --danger:#f97066; --danger-soft:#3a1d1b;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;line-height:1.6}
+.wrap{max-width:720px;margin:0 auto;padding:40px 16px 64px}
+header{text-align:center;margin-bottom:28px}
+.logo{display:inline-flex;align-items:center;gap:10px;font-size:30px;font-weight:700}
+.logo svg{color:var(--accent)}
+header p{color:var(--muted);margin:6px 0 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.mode{border:1.5px solid var(--line);border-radius:12px;padding:14px;cursor:pointer;text-align:start;background:transparent;color:inherit;font:inherit;transition:.15s}
+.mode b{display:block;font-size:16px}
+.mode span{font-size:13px;color:var(--muted)}
+.mode[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.tabs{display:flex;gap:6px;background:var(--bg);padding:4px;border-radius:10px;margin-bottom:14px}
+.tab{flex:1;border:0;background:transparent;color:var(--muted);padding:8px;border-radius:8px;font:inherit;font-weight:500;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.drop{display:block;border:2px dashed var(--line);border-radius:12px;padding:34px 16px;text-align:center;cursor:pointer;transition:.15s}
+.drop.over,.drop:hover{border-color:var(--accent);background:var(--accent-soft)}
+.drop .big{font-weight:600}
+.drop .small{color:var(--muted);font-size:13px}
+.drop .fname{margin-top:8px;font-weight:600;color:var(--accent);word-break:break-all}
+input[type=url]{width:100%;padding:13px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:inherit;direction:ltr;text-align:left}
+input[type=url]:focus{outline:none;border-color:var(--accent)}
+.hint{color:var(--muted);font-size:13px;margin-top:8px}
+.go{margin-top:18px;width:100%;padding:14px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:inherit;font-size:17px;font-weight:600;cursor:pointer}
+.go:disabled{opacity:.5;cursor:not-allowed}
+.status{margin-top:18px}
+.bar{height:10px;background:var(--bg);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .4s}
+.stage{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);margin-top:8px}
+.err{background:var(--danger-soft);color:var(--danger);padding:12px 14px;border-radius:12px;margin-top:16px}
+.results{margin-top:18px;display:grid;gap:12px}
+.out{border:1px solid var(--line);border-radius:12px;padding:14px}
+.out h3{margin:0 0 10px;font-size:15px}
+.out audio,.out video{width:100%;border-radius:8px;display:block}
+.out video{background:#000;max-height:400px}
+.dl{display:inline-block;margin-top:10px;padding:8px 14px;border-radius:9px;border:1.5px solid var(--accent);color:var(--accent);text-decoration:none;font-weight:600;font-size:14px}
+.again{background:transparent;border:1.5px solid var(--line);color:var(--ink);margin-top:6px}
+footer{text-align:center;color:var(--muted);font-size:13px;margin-top:24px}
+[hidden]{display:none!important}
+@media (max-width:480px){.modes{grid-template-columns:1fr}.wrap{padding-top:24px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2M21 12h0"/></svg>
+      عزل
+    </div>
+    <p>أزل الموسيقى من أي مقطع، أو افصل الصوت عن الموسيقى في الأغاني، بالذكاء الاصطناعي</p>
+  </header>
+
+  <main class="card">
+    <form id="form">
+      <div class="modes" role="group" aria-label="نوع العزل">
+        <button type="button" class="mode" data-mode="speech" aria-pressed="true">
+          <b>إزالة الموسيقى</b><span>يبقى الكلام بس، للمقاطع والمسلسلات والفيديوهات</span>
+        </button>
+        <button type="button" class="mode" data-mode="song" aria-pressed="false">
+          <b>فصل أغنية</b><span>الصوت لحاله والموسيقى لحالها</span>
+        </button>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab" role="tab" data-src="file" aria-selected="true">رفع ملف</button>
+        <button type="button" class="tab" role="tab" data-src="url" aria-selected="false">رابط (يوتيوب وغيره)</button>
+      </div>
+
+      <div id="srcFile">
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="audio/*,video/*,.mkv,.flac,.opus,.m4a" hidden>
+          <div class="big">اسحب الملف هنا أو اضغط للاختيار</div>
+          <div class="small" id="limits">صوت أو فيديو: mp4, mp3, wav, m4a, mkv…</div>
+          <div class="fname" id="fname" hidden></div>
+        </label>
+      </div>
+
+      <div id="srcUrl" hidden>
+        <input type="url" id="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+        <div class="hint">يدعم يوتيوب، تويتر/X، تيك توك، إنستقرام وغيرها من المواقع.</div>
+      </div>
+
+      <button class="go" id="go" type="submit" disabled>ابدأ العزل</button>
+    </form>
+
+    <section class="status" id="status" hidden>
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="stage"><span id="stageText">…</span><span id="pct">0%</span></div>
+    </section>
+
+    <div class="err" id="err" hidden></div>
+
+    <section class="results" id="results" hidden></section>
+    <button class="go again" id="again" hidden>ملف جديد</button>
+  </main>
+
+  <footer>يشتغل على جهازك مجانًا. الملفات تنحذف تلقائيًا بعد ساعة.</footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let mode = "speech", src = "file", file = null, poll = null;
+
+const STAGES = {
+  queued: "في الانتظار…",
+  download: "جاري تحميل المقطع…",
+  prepare: "جاري تجهيز الصوت…",
+  model: "جاري تحميل نموذج الذكاء الاصطناعي…",
+  separate: "جاري عزل الصوت عن الموسيقى…",
+  export: "جاري حفظ الملفات…",
+  done: "تم ✓",
+};
+
+fetch("/api/config").then(r => r.json()).then(c => {
+  $("#limits").textContent = `صوت أو فيديو، حتى ${c.max_upload_mb} ميجا و${c.max_minutes} دقيقة`;
+}).catch(() => {});
+
+document.querySelectorAll(".mode").forEach(b => b.onclick = () => {
+  mode = b.dataset.mode;
+  document.querySelectorAll(".mode").forEach(x => x.setAttribute("aria-pressed", x === b));
+});
+document.querySelectorAll(".tab").forEach(b => b.onclick = () => {
+  src = b.dataset.src;
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x === b));
+  $("#srcFile").hidden = src !== "file";
+  $("#srcUrl").hidden = src !== "url";
+  check();
+});
+
+function check(){ $("#go").disabled = src === "file" ? !file : !/^https?:\/\/\S+/.test($("#url").value.trim()); }
+$("#url").oninput = check;
+
+function pick(f){ if(!f) return; file = f; $("#fname").textContent = f.name; $("#fname").hidden = false; check(); }
+$("#file").onchange = e => pick(e.target.files[0]);
+const drop = $("#drop");
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => pick(e.dataTransfer.files[0]));
+
+function showErr(msg){ $("#err").textContent = msg; $("#err").hidden = false; $("#status").hidden = true; $("#again").hidden = false; }
+function setProgress(p, text){ $("#barFill").style.width = (p*100).toFixed(0)+"%"; $("#pct").textContent = (p*100).toFixed(0)+"%"; $("#stageText").textContent = text; }
+
+$("#form").onsubmit = e => {
+  e.preventDefault();
+  const fd = new FormData();
+  fd.append("mode", mode);
+  if (src === "file") fd.append("file", file); else fd.append("url", $("#url").value.trim());
+
+  $("#form").hidden = true; $("#err").hidden = true; $("#status").hidden = false;
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/jobs");
+  xhr.upload.onprogress = ev => { if (ev.lengthComputable) setProgress(ev.loaded/ev.total*0.15, "جاري رفع الملف…"); };
+  xhr.onload = () => {
+    let data; try { data = JSON.parse(xhr.responseText); } catch { data = {}; }
+    if (xhr.status >= 300) return showErr(data.detail || "تعذّر بدء المعالجة");
+    track(data.id);
+  };
+  xhr.onerror = () => showErr("انقطع الاتصال بالسيرفر");
+  xhr.send(fd);
+};
+
+function track(id){
+  const tick = async () => {
+    let j;
+    try { j = await (await fetch(`/api/jobs/${id}`)).json(); } catch { poll = setTimeout(tick, 3000); return; }
+    if (j.status === "error") return showErr(j.error);
+    let text = STAGES[j.stage] || "…";
+    if (j.status === "queued" && j.ahead) text = `في الانتظار، قبلك ${j.ahead} طلب…`;
+    setProgress(j.progress || 0, text);
+    if (j.status === "done") return showResults(id, j);
+    poll = setTimeout(tick, 1500);
+  };
+  tick();
+}
+
+function showResults(id, j){
+  $("#status").hidden = true;
+  const box = $("#results"); box.innerHTML = ""; box.hidden = false;
+  for (const o of j.outputs){
+    const url = `/api/jobs/${id}/files/${encodeURIComponent(o.name)}`;
+    const el = document.createElement("div"); el.className = "out";
+    const h = document.createElement("h3"); h.textContent = o.label;
+    const media = document.createElement(o.kind === "video" ? "video" : "audio");
+    media.controls = true; media.preload = "metadata"; media.src = url;
+    const a = document.createElement("a"); a.className = "dl"; a.href = url + "?download=1"; a.textContent = "تحميل ⬇";
+    el.append(h, media, a); box.append(el);
+  }
+  $("#again").hidden = false;
+}
+
+$("#again").onclick = () => {
+  clearTimeout(poll); file = null; $("#file").value = ""; $("#url").value = ""; $("#fname").hidden = true;
+  $("#results").hidden = true; $("#results").innerHTML = ""; $("#err").hidden = true; $("#again").hidden = true;
+  $("#form").hidden = false; setProgress(0, ""); check();
+};
+</script>
+</body>
+</html>
