@@ -106,6 +106,14 @@
                     android:textColor="@color/muted"
                     android:textSize="13sp" />
 
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/switchBest"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/best_quality"
+                    android:textColor="@color/ink" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnPickFile"
                     style="@style/Widget.Material3.Button.TonalButton"

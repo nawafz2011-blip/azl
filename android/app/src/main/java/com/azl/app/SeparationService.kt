@@ -28,13 +28,15 @@ class SeparationService : Service() {
     companion object {
         private const val EXTRA_MODE = "mode"
         private const val EXTRA_URL = "url"
+        private const val EXTRA_MODEL = "model"
         private const val NOTIF_WORK = 1
         private const val NOTIF_DONE = 2
         const val ACTION_CANCEL = "com.azl.app.CANCEL"
 
-        fun start(ctx: Context, mode: Mode, url: String?, uri: Uri?) {
+        fun start(ctx: Context, mode: Mode, url: String?, uri: Uri?, model: Model) {
             val i = Intent(ctx, SeparationService::class.java).apply {
                 putExtra(EXTRA_MODE, mode.name)
+                putExtra(EXTRA_MODEL, model.name)
                 url?.let { putExtra(EXTRA_URL, it) }
                 uri?.let {
                     data = it
@@ -64,6 +66,7 @@ class SeparationService : Service() {
 
         val mode = Mode.valueOf(intent.getStringExtra(EXTRA_MODE) ?: Mode.SPEECH.name)
         val url = intent.getStringExtra(EXTRA_URL)
+        val model = runCatching { Model.valueOf(intent.getStringExtra(EXTRA_MODEL)!!) }.getOrDefault(Model.FAST)
         val uri = intent.data
 
         wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
@@ -81,7 +84,7 @@ class SeparationService : Service() {
             }
         }
         scope.launch {
-            Engine.run(applicationContext, mode, url, uri)
+            Engine.run(applicationContext, mode, url, uri, model)
             updates.cancel()
             val s = JobRepo.state.value
             nm.notify(NOTIF_DONE, doneNotification(s))

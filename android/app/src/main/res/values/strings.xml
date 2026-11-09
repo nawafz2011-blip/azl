@@ -9,6 +9,7 @@
     <string name="pick_file">اختر ملف صوت أو فيديو من جوالك</string>
     <string name="url_hint">أو حط رابط (يوتيوب، تيك توك…)</string>
     <string name="sites">يوتيوب · تيك توك · إنستقرام · X · فيسبوك وغيرها. وتقدر تشارك المقطع للتطبيق مباشرة.</string>
+    <string name="best_quality">جودة أعلى (أبطأ ٣ مرات تقريبًا)</string>
     <string name="start">ابدأ العزل</string>
     <string name="bg_hint">تقدر تطلع من التطبيق، والعزل يكمل في الخلفية.</string>
     <string name="saved_to">انحفظت في الجوال: الصوت في Music/عزل، والفيديو في Movies/عزل.</string>

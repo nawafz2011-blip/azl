@@ -37,7 +37,7 @@ object Engine {
         if (cancelled()) throw CancelledException()
     }
 
-    fun run(ctx: Context, mode: Mode, url: String?, uri: Uri?) {
+    fun run(ctx: Context, mode: Mode, url: String?, uri: Uri?, model: Model) {
         val work = File(ctx.cacheDir, "job").apply { deleteRecursively(); mkdirs() }
         JobRepo.cancel = false
         try {
@@ -63,16 +63,17 @@ object Engine {
             checkCancel()
 
             // 3) model (downloaded once)
-            if (!ModelManager.ready(ctx)) {
-                JobRepo.update { it.copy(stage = "جاري تحميل نموذج العزل (67 ميقا، أول مرة بس)…", progress = 0f) }
-                ModelManager.ensure(ctx, { p -> JobRepo.update { it.copy(progress = p) } }, ::cancelled)
+            if (!ModelManager.ready(ctx, model)) {
+                val mb = model.size / 1_000_000
+                JobRepo.update { it.copy(stage = "جاري تحميل نموذج العزل ($mb ميقا، أول مرة بس)…", progress = 0f) }
+                ModelManager.ensure(ctx, model, { p -> JobRepo.update { it.copy(progress = p) } }, ::cancelled)
             }
 
             // 4) separate
             JobRepo.update { it.copy(stage = "جاري عزل الصوت عن الموسيقى…", progress = 0f) }
             val voicePcm = File(work, "voice.pcm")
             val musicPcm = File(work, "music.pcm")
-            MdxSeparator(ModelManager.file(ctx).path).use { sep ->
+            MdxSeparator(ModelManager.file(ctx, model).path, model.nFft, model.dimF).use { sep ->
                 PcmFileSource(mixPcm).use { src ->
                     PcmFileWriter(voicePcm).use { vw ->
                         PcmFileWriter(musicPcm).use { mw ->

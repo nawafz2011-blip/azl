@@ -30,20 +30,29 @@ class CancelledException : Exception("cancelled")
  * The model works on spectrograms, so we do the STFT / inverse STFT here.
  * Music = mix - vocals.
  */
-class MdxSeparator(modelPath: String, threads: Int = Runtime.getRuntime().availableProcessors()) : Closeable {
+class MdxSeparator(
+    modelPath: String,
+    /** FFT size of the model: 7680 for Kim_Vocal_2, 6144 for UVR_MDXNET_1_9703 */
+    private val N_FFT: Int,
+    /** frequency bins the model sees: 3072 or 2048 */
+    private val DIM_F: Int,
+    threads: Int = defaultThreads(),
+) : Closeable {
 
     companion object {
         const val SR = 44100
-        const val N_FFT = 7680
         const val HOP = 1024
-        const val DIM_F = 3072
         const val DIM_T = 256
         const val CHUNK = HOP * (DIM_T - 1)          // samples per model call
-        const val TRIM = N_FFT / 2                    // context dropped at each edge
-        const val GEN = CHUNK - 2 * TRIM              // useful samples per call
-        private const val PAD = N_FFT / 2             // stft(center=True) padding
-        private const val OLA_LEN = N_FFT + HOP * (DIM_T - 1)
+
+        /** Phones mix fast and slow cores; using every core makes the fast ones wait. */
+        fun defaultThreads() = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
     }
+
+    private val TRIM = N_FFT / 2                     // context dropped at each edge
+    private val GEN = CHUNK - 2 * TRIM               // useful samples per call
+    private val PAD = N_FFT / 2                      // stft(center=True) padding
+    private val OLA_LEN = N_FFT + HOP * (DIM_T - 1)
 
     private val env = OrtEnvironment.getEnvironment()
     private val session: OrtSession
@@ -57,7 +66,7 @@ class MdxSeparator(modelPath: String, threads: Int = Runtime.getRuntime().availa
 
     init {
         val opts = OrtSession.SessionOptions().apply {
-            setIntraOpNumThreads(max(1, min(threads, 8)))
+            setIntraOpNumThreads(max(1, threads))
             setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
         }
         session = env.createSession(modelPath, opts)

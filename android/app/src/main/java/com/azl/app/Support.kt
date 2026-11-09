@@ -76,24 +76,29 @@ object Ffmpeg {
     }
 }
 
-/** The separation model is downloaded once and kept in the app's files. */
+/** Separation models. Each is downloaded once and kept in the app's files. */
+enum class Model(val fileName: String, val size: Long, val nFft: Int, val dimF: Int) {
+    /** default: ~3x faster, almost the same quality */
+    FAST("UVR_MDXNET_1_9703.onnx", 29704436L, 6144, 2048),
+    /** best quality, slower */
+    BEST("Kim_Vocal_2.onnx", 66759214L, 7680, 3072),
+}
+
 object ModelManager {
-    private const val NAME = "Kim_Vocal_2.onnx"
-    private const val SIZE = 66759214L
-    private val URLS = listOf(
-        "https://github.com/nawafz2011-blip/azl/releases/download/model/$NAME",
-        "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/$NAME",
+    private fun urls(m: Model) = listOf(
+        "https://github.com/nawafz2011-blip/azl/releases/download/model/${m.fileName}",
+        "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/${m.fileName}",
     )
 
-    fun file(ctx: Context) = File(ctx.filesDir, "models/$NAME")
-    fun ready(ctx: Context) = file(ctx).length() == SIZE
+    fun file(ctx: Context, m: Model) = File(ctx.filesDir, "models/${m.fileName}")
+    fun ready(ctx: Context, m: Model) = file(ctx, m).length() == m.size
 
-    fun ensure(ctx: Context, onProgress: (Float) -> Unit, cancelled: () -> Boolean) {
-        if (ready(ctx)) return
-        val dest = file(ctx).apply { parentFile?.mkdirs() }
+    fun ensure(ctx: Context, m: Model, onProgress: (Float) -> Unit, cancelled: () -> Boolean) {
+        if (ready(ctx, m)) return
+        val dest = file(ctx, m).apply { parentFile?.mkdirs() }
         val part = File(dest.path + ".part")
         var lastError: Exception? = null
-        for (u in URLS) {
+        for (u in urls(m)) {
             try {
                 val c = URL(u).openConnection() as HttpURLConnection
                 c.connectTimeout = 20000; c.readTimeout = 30000
@@ -109,11 +114,11 @@ object ModelManager {
                             if (n < 0) break
                             out.write(buf, 0, n)
                             done += n
-                            onProgress(done.toFloat() / SIZE)
+                            onProgress(done.toFloat() / m.size)
                         }
                     }
                 }
-                if (part.length() == SIZE && part.renameTo(dest)) return
+                if (part.length() == m.size && part.renameTo(dest)) return
                 lastError = RuntimeException("size ${part.length()}")
             } catch (e: com.azl.app.core.CancelledException) {
                 part.delete(); throw e

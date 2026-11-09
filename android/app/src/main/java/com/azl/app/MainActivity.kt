@@ -69,6 +69,10 @@ class MainActivity : AppCompatActivity() {
             b.txtModeHint.setText(if (mode == Mode.SONG) R.string.hint_song else R.string.hint_speech)
         }
 
+        val prefs = getSharedPreferences("azl", MODE_PRIVATE)
+        b.switchBest.isChecked = prefs.getBoolean("best_quality", false)
+        b.switchBest.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("best_quality", on).apply() }
+
         b.btnPickFile.setOnClickListener { pickFile.launch(arrayOf("audio/*", "video/*")) }
         b.inputUrlLayout.setEndIconOnClickListener {
             val clip = getSystemService(ClipboardManager::class.java).primaryClip
@@ -147,7 +151,7 @@ class MainActivity : AppCompatActivity() {
         val url = if (pickedUri == null) extractUrl(b.inputUrl.text?.toString()) else null
         if (pickedUri == null && url == null) return
         JobRepo.update { JobState(running = true, stage = "جاري البدء…") }
-        SeparationService.start(this, mode, url, pickedUri)
+        SeparationService.start(this, mode, url, pickedUri, if (b.switchBest.isChecked) Model.BEST else Model.FAST)
     }
 
     private fun observe() {

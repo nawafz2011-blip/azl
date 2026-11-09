@@ -27,10 +27,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          base=https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models
           if ! gh release view model >/dev/null 2>&1; then
-            curl -fsSL -o Kim_Vocal_2.onnx https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_2.onnx
-            gh release create model Kim_Vocal_2.onnx --prerelease --title "نموذج العزل" --notes "UVR MDX-Net Kim_Vocal_2. التطبيق يحمّله تلقائيًا أول مرة."
+            gh release create model --prerelease --title "نماذج العزل" --notes "نماذج UVR MDX-Net. التطبيق يحمّلها تلقائيًا أول مرة."
           fi
+          have=$(gh release view model --json assets -q '.assets[].name')
+          for f in UVR_MDXNET_1_9703.onnx Kim_Vocal_2.onnx; do
+            if ! grep -qx "$f" <<< "$have"; then
+              curl -fsSL -o "$f" "$base/$f" && gh release upload model "$f"
+            fi
+          done
 
       - name: Build APK
         working-directory: android
@@ -47,4 +53,4 @@ jobs:
           files: azl-v1.0.${{ github.run_number }}.apk
           body: |
             نزّل ملف **azl-v1.0.${{ github.run_number }}.apk** تحت، وافتحه في جوالك عشان تثبّته.
-            أول مرة تعزل فيها، التطبيق يحمّل نموذج العزل (67 ميقا) مرة وحدة بس.
+            أول مرة تعزل فيها، التطبيق يحمّل نموذج العزل (30 ميقا) مرة وحدة بس.
