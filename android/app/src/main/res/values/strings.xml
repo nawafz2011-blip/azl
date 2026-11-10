@@ -13,5 +13,5 @@
     <string name="best_quality">جودة أعلى (أبطأ ٣ مرات تقريبًا)</string>
     <string name="start">ابدأ العزل</string>
     <string name="bg_hint">تقدر تطلع من التطبيق، والعزل يكمل وينبهك لما يخلص</string>
-    <string name="saved_to">انحفظت في الجوال داخل مجلد «عزل»: الصوت في الموسيقى، والفيديو في الأفلام.</string>
+    <string name="saved_to">الفيديو في الاستوديو والصور، والصوت في الموسيقى، داخل مجلد «عزل».</string>
 </resources>

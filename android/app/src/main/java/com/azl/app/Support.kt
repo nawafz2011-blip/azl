@@ -140,7 +140,8 @@ object MediaSaver {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val collection = if (isVideo) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
             else MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-            val dir = if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_MUSIC
+            // DCIM: the camera folder, so the video shows in the gallery / studio / Google Photos
+            val dir = if (isVideo) Environment.DIRECTORY_DCIM else Environment.DIRECTORY_MUSIC
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
                 put(MediaStore.MediaColumns.MIME_TYPE, mime)
@@ -157,7 +158,7 @@ object MediaSaver {
         } else {
             @Suppress("DEPRECATION")
             val base = Environment.getExternalStoragePublicDirectory(
-                if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_MUSIC)
+                if (isVideo) Environment.DIRECTORY_DCIM else Environment.DIRECTORY_MUSIC)
             val dir = File(base, FOLDER).apply { mkdirs() }
             var out = File(dir, name)
             var i = 1

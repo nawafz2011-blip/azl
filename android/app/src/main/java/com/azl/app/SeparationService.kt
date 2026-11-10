@@ -119,8 +119,12 @@ class SeparationService : Service() {
     private fun doneNotification(s: JobState): Notification =
         NotificationCompat.Builder(this, AzlApp.CHANNEL_DONE)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle(if (s.error == null) "تم العزل ✓" else "ما تم العزل")
-            .setContentText(s.error ?: "انحفظت الملفات في الموسيقى والأفلام، داخل مجلد عزل")
+            .setContentTitle(when {
+                s.error != null -> "ما تم العزل"
+                s.results.any { it.isVideo } -> "تم حفظ الفيديو في الاستوديو ✓"
+                else -> "تم العزل ✓"
+            })
+            .setContentText(s.error ?: s.title)
             .setAutoCancel(true)
             .setContentIntent(openApp())
             .build()

@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
-import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -87,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         setupSettings()
         handleShare(intent)
         observe()
+        observePlayer()
         checkUpdate()
     }
 
@@ -102,8 +102,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        stopAudio()
+        // the video can't play without the screen; the audio tracks keep playing in the background
         if (home.video.isPlaying) { home.video.pause(); home.videoPlay.isVisible = true }
+        handler.removeCallbacks(tick)
     }
 
     // ---------------------------------------------------------------- navigation
@@ -121,7 +122,6 @@ class MainActivity : AppCompatActivity() {
         b.settings.root.isVisible = id == R.id.nav_settings
         if (id == R.id.nav_history) renderHistory()
         if (id == R.id.nav_settings) refreshModelsSize()
-        if (id != R.id.nav_home) stopAudio()
     }
 
     // ---------------------------------------------------------------- home
@@ -268,7 +268,7 @@ class MainActivity : AppCompatActivity() {
 
         if (s.running) renderProgress(s)
         if (hasResults && shownResults !== s.results) showResults(s.title, s.results)
-        if (!hasResults && shownResults != null) { shownResults = null; stopAudio() }
+        if (!hasResults && shownResults != null) { shownResults = null }
     }
 
     private val stepNames = listOf("تجهيز المقطع", "قراءة الصوت", "عزل الصوت عن الموسيقى", "حفظ الملفات في الجوال")
@@ -352,9 +352,9 @@ class MainActivity : AppCompatActivity() {
     // ---------------------------------------------------------------- results + playback
     private fun showResults(title: String, results: List<ResultItem>) {
         shownResults = results
-        stopAudio()
-        home.txtResultTitle.text = title
         val video = results.firstOrNull { it.isVideo }
+        home.txtResultDone.text = if (video != null) "تم حفظ الفيديو في الاستوديو ✓" else "تم العزل ✓"
+        home.txtResultTitle.text = title
         home.videoCard.isVisible = video != null
         if (video != null) setupVideo(video.uri)
         home.tracksContainer.removeAllViews()
@@ -369,22 +369,21 @@ class MainActivity : AppCompatActivity() {
         home.videoPlay.isVisible = true
         val toggle = View.OnClickListener {
             if (v.isPlaying) { v.pause(); home.videoPlay.isVisible = true }
-            else { stopAudio(); v.start(); home.videoPlay.isVisible = false }
+            else { if (AudioPlayer.state.value.playing) AudioPlayer.toggle(this, AudioPlayer.state.value.uri!!, ""); v.start(); home.videoPlay.isVisible = false }
         }
         home.videoPlay.setOnClickListener(toggle)
         home.videoCard.setOnClickListener(toggle)
         v.setOnCompletionListener { home.videoPlay.isVisible = true }
     }
 
-    private var player: MediaPlayer? = null
-    private var playing: ItemTrackBinding? = null
+    /** rows on screen that can play, so we can update the one that is playing */
+    private val rows = mutableListOf<Pair<ItemTrackBinding, ResultItem>>()
     private val handler = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
-            val p = player ?: return
-            val row = playing ?: return
-            if (p.duration > 0) row.wave.progress = p.currentPosition.toFloat() / p.duration
-            handler.postDelayed(this, 80)
+            val cur = AudioPlayer.state.value
+            rows.forEach { (row, r) -> if (r.uri == cur.uri) row.wave.progress = AudioPlayer.progress() }
+            if (cur.playing) handler.postDelayed(this, 80)
         }
     }
 
@@ -392,42 +391,44 @@ class MainActivity : AppCompatActivity() {
         val row = ItemTrackBinding.inflate(layoutInflater, parent, false)
         row.txtLabel.text = r.label
         row.wave.peaks = r.peaks
-        row.wave.progress = 1f
         val isMusic = r.label.contains("الموسيقى")
         row.btnPlay.setBackgroundResource(if (isMusic) R.drawable.bg_circle_plain else R.drawable.bg_circle_acc)
         row.btnPlay.imageTintList = ColorStateList.valueOf(color(if (isMusic) R.color.ink else R.color.accent_ink))
-        row.btnPlay.setOnClickListener { togglePlay(row, r) }
-        row.root.setOnClickListener { togglePlay(row, r) }
+        val title = "${r.label} · ${JobRepo.state.value.title}".trimEnd(' ', '·')
+        val play = View.OnClickListener {
+            if (home.video.isPlaying) { home.video.pause(); home.videoPlay.isVisible = true }
+            if (!AudioPlayer.toggle(this, r.uri, title)) toast("ما قدرت أشغّل الملف. يمكن انحذف من الجوال")
+        }
+        row.btnPlay.setOnClickListener(play)
+        row.root.setOnClickListener(play)
         row.btnShare.setOnClickListener { share(r) }
+        rows.removeAll { it.first.root.parent == null && it.first !== row }
+        rows += row to r
+        paintRow(row, r, AudioPlayer.state.value)
         return row
     }
 
-    private fun togglePlay(row: ItemTrackBinding, r: ResultItem) {
-        if (playing === row) {
-            val p = player ?: return
-            if (p.isPlaying) { p.pause(); row.btnPlay.setImageResource(R.drawable.ic_play); handler.removeCallbacks(tick) }
-            else { p.start(); row.btnPlay.setImageResource(R.drawable.ic_pause); handler.post(tick) }
-            return
-        }
-        stopAudio()
-        if (home.video.isPlaying) { home.video.pause(); home.videoPlay.isVisible = true }
-        val p = runCatching { MediaPlayer.create(this, r.uri) }.getOrNull()
-        if (p == null) { toast("ما قدرت أشغّل الملف. يمكن انحذف من الجوال"); return }
-        player = p
-        playing = row
-        row.wave.progress = 0f
-        row.btnPlay.setImageResource(R.drawable.ic_pause)
-        p.setOnCompletionListener { stopAudio() }
-        p.start()
-        handler.post(tick)
+    private fun paintRow(row: ItemTrackBinding, r: ResultItem, s: PlayState) {
+        val current = s.uri == r.uri
+        row.btnPlay.setImageResource(if (current && s.playing) R.drawable.ic_pause else R.drawable.ic_play)
+        row.wave.progress = if (current) AudioPlayer.progress() else 1f
     }
 
+    private fun observePlayer() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                AudioPlayer.state.collect { s ->
+                    rows.forEach { (row, r) -> paintRow(row, r, s) }
+                    handler.removeCallbacks(tick)
+                    if (s.playing) handler.post(tick)
+                }
+            }
+        }
+    }
+
+    /** Stops the sound (used when starting over). Leaving the app does NOT stop it. */
     private fun stopAudio() {
-        handler.removeCallbacks(tick)
-        player?.runCatching { stop(); release() }
-        player = null
-        playing?.let { it.btnPlay.setImageResource(R.drawable.ic_play); it.wave.progress = 1f }
-        playing = null
+        if (AudioPlayer.state.value.uri != null) AudioPlayer.stop(this)
     }
 
     private fun share(r: ResultItem) {
@@ -501,7 +502,6 @@ class MainActivity : AppCompatActivity() {
             } else box.addView(trackRow(r, box).root)
         }
         sheet.setContentView(box)
-        sheet.setOnDismissListener { stopAudio() }
         sheet.show()
     }
 
