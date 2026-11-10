@@ -73,13 +73,17 @@ class MdxSeparator(
         inputName = session.inputNames.first()
     }
 
+    /** Output frames produced per model call (the last chunk may be shorter). */
+    val framesPerChunk: Int get() = GEN
+
     fun chunkCount(frames: Long): Int = ((frames + GEN - 1) / GEN).toInt().coerceAtLeast(1)
 
     /**
      * Separate [src] and stream the result to [sink].
      * [progress] gets 0..1, [cancelled] is polled between chunks.
      */
-    fun separate(src: PcmSource, sink: PcmSink, progress: (Float) -> Unit = {}, cancelled: () -> Boolean = { false }) {
+    fun separate(src: PcmSource, sink: PcmSink, progress: (Float) -> Unit = {}, cancelled: () -> Boolean = { false },
+                 startChunk: Int = 0) {
         val total = src.frames
         val chunks = chunkCount(total)
         val win = FloatArray(CHUNK * 2)
@@ -89,7 +93,7 @@ class MdxSeparator(
         val outL = FloatArray(OLA_LEN)
         val outR = FloatArray(OLA_LEN)
 
-        for (c in 0 until chunks) {
+        for (c in startChunk until chunks) {
             if (cancelled()) throw CancelledException()
             val start = c.toLong() * GEN
             // model window = [start - TRIM, start - TRIM + CHUNK)

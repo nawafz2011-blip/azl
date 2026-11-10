@@ -153,6 +153,14 @@ class MainActivity : AppCompatActivity() {
         }
         home.btnShareAll.setOnClickListener { shownResults?.let { shareAll(it) } }
         home.btnHeader.setOnClickListener { onHeaderButton() }
+        home.btnResume.setOnClickListener {
+            JobRepo.update { JobState(running = true, stage = "نكمّل من وين وقف…", resumed = true) }
+            SeparationService.resume(this)
+        }
+        home.btnDiscard.setOnClickListener {
+            Engine.discardPending(this)
+            home.cardResume.isVisible = false
+        }
         buildSteps()
     }
 
@@ -237,6 +245,7 @@ class MainActivity : AppCompatActivity() {
         if (pickedUri == null && url == null) return
         JobRepo.update { JobState(running = true, stage = "جاري البدء…") }
         val model = if (prefs.getBoolean("best_quality", false)) Model.BEST else Model.FAST
+        Engine.discardPending(this)
         SeparationService.start(this, mode, url, pickedUri, model)
     }
 
@@ -262,6 +271,11 @@ class MainActivity : AppCompatActivity() {
         }
         home.btnHeader.setImageResource(if (hasResults) R.drawable.ic_share else R.drawable.ic_help)
         home.btnHeader.isVisible = !s.running
+        val pending = if (!s.running && !hasResults) Engine.pending(this) else null
+        home.cardResume.isVisible = pending != null
+        pending?.let { (spec, t) ->
+            home.txtResume.text = t.ifEmpty { spec.url ?: "مقطع من جوالك" }
+        }
         home.txtError.isVisible = s.error != null
         home.txtError.text = s.error
         refreshStart()

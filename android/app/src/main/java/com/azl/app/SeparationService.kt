@@ -32,6 +32,12 @@ class SeparationService : Service() {
         private const val NOTIF_WORK = 1
         private const val NOTIF_DONE = 2
         const val ACTION_CANCEL = "com.azl.app.CANCEL"
+        private const val ACTION_RESUME = "com.azl.app.RESUME"
+
+        /** Carry on with a job that was interrupted (the app was closed by the phone). */
+        fun resume(ctx: Context) {
+            ContextCompat.startForegroundService(ctx, Intent(ctx, SeparationService::class.java).setAction(ACTION_RESUME))
+        }
 
         fun start(ctx: Context, mode: Mode, url: String?, uri: Uri?, model: Model) {
             val i = Intent(ctx, SeparationService::class.java).apply {
@@ -60,14 +66,24 @@ class SeparationService : Service() {
             return START_NOT_STICKY
         }
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0
-        ServiceCompat.startForeground(this, NOTIF_WORK, progressNotification(JobState(stage = "جاري البدء…")), type)
-        if (busy || intent == null) return START_NOT_STICKY
+        try {
+            ServiceCompat.startForeground(this, NOTIF_WORK, progressNotification(JobState(stage = "جاري البدء…")), type)
+        } catch (e: Exception) {
+            // Android may refuse to restart us in the background; the app offers "كمّل" next time it opens
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (busy) return START_REDELIVER_INTENT
         busy = true
 
-        val mode = Mode.valueOf(intent.getStringExtra(EXTRA_MODE) ?: Mode.SPEECH.name)
-        val url = intent.getStringExtra(EXTRA_URL)
-        val model = runCatching { Model.valueOf(intent.getStringExtra(EXTRA_MODEL)!!) }.getOrDefault(Model.FAST)
-        val uri = intent.data
+        // null spec = resume the saved job: the user asked to, or Android restarted us after killing the app
+        val redelivered = intent == null || (flags and START_FLAG_REDELIVERY) != 0
+        val spec: JobSpec? = if (redelivered || intent?.action == ACTION_RESUME) null else JobSpec(
+            mode = Mode.valueOf(intent!!.getStringExtra(EXTRA_MODE) ?: Mode.SPEECH.name),
+            url = intent.getStringExtra(EXTRA_URL),
+            uri = intent.data,
+            model = runCatching { Model.valueOf(intent.getStringExtra(EXTRA_MODEL)!!) }.getOrDefault(Model.FAST),
+        )
 
         wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "azl:separate").apply { acquire(3 * 60 * 60 * 1000L) }
@@ -84,7 +100,7 @@ class SeparationService : Service() {
             }
         }
         scope.launch {
-            Engine.run(applicationContext, mode, url, uri, model)
+            Engine.run(applicationContext, spec)
             updates.cancel()
             val s = JobRepo.state.value
             nm.notify(NOTIF_DONE, doneNotification(s))
@@ -93,7 +109,8 @@ class SeparationService : Service() {
             busy = false
             stopSelf()
         }
-        return START_NOT_STICKY
+        // if Android kills the app mid-way, it restarts this service and the job carries on
+        return START_REDELIVER_INTENT
     }
 
     private fun openApp(): PendingIntent = PendingIntent.getActivity(this, 0,

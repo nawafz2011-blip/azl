@@ -30,8 +30,12 @@ class PcmFileSource(file: File) : PcmSource, Closeable {
 }
 
 /** Writes interleaved stereo floats as raw f32le. */
-class PcmFileWriter(file: File) : Closeable {
-    private val out = BufferedOutputStream(FileOutputStream(file), 1 shl 20)
+class PcmFileWriter(file: File, append: Boolean = false) : Closeable {
+    private val fos = FileOutputStream(file, append)
+    private val out = BufferedOutputStream(fos, 1 shl 20)
+
+    /** Push everything to disk, so a resumed job can trust the file length. */
+    fun flush() { out.flush(); runCatching { fos.fd.sync() } }
 
     fun write(samples: FloatArray, frames: Int) {
         val bb = ByteBuffer.allocate(frames * 8).order(ByteOrder.LITTLE_ENDIAN)

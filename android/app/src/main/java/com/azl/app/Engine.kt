@@ -9,7 +9,9 @@ import com.azl.app.core.PcmFileSource
 import com.azl.app.core.PcmFileWriter
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import org.json.JSONObject
 import java.io.File
+import java.io.RandomAccessFile
 import java.util.UUID
 
 enum class Mode { SPEECH, SONG }
@@ -36,9 +38,47 @@ data class JobState(
     val error: String? = null,
     val results: List<ResultItem> = emptyList(),
     val title: String = "",
+    /** true when this run picked up a job that was interrupted */
+    val resumed: Boolean = false,
 )
 
 class UserError(msg: String) : Exception(msg)
+
+/** What to separate. Saved to disk so an interrupted job can carry on. */
+data class JobSpec(val mode: Mode, val url: String?, val uri: Uri?, val model: Model)
+
+/**
+ * The job folder lives in the app's files (not the cache) together with job.json,
+ * which records what is already done. If Android kills the app, the next run reads it and carries on.
+ */
+private class JobFile(val dir: File) {
+    private val f = File(dir, "job.json")
+    val json: JSONObject = runCatching { JSONObject(f.readText()) }.getOrDefault(JSONObject())
+    fun save() = f.writeText(json.toString())
+    fun exists() = f.exists()
+
+    var spec: JobSpec?
+        get() = runCatching {
+            JobSpec(Mode.valueOf(json.getString("mode")), json.optString("url").ifEmpty { null },
+                json.optString("uri").ifEmpty { null }?.let(Uri::parse), Model.valueOf(json.getString("model")))
+        }.getOrNull()
+        set(v) {
+            json.put("mode", v!!.mode.name); json.put("url", v.url ?: ""); json.put("uri", v.uri?.toString() ?: "")
+            json.put("model", v.model.name)
+        }
+    var title: String
+        get() = json.optString("title")
+        set(v) { json.put("title", v) }
+    var input: String
+        get() = json.optString("input")
+        set(v) { json.put("input", v) }
+    var decoded: Boolean
+        get() = json.optBoolean("decoded")
+        set(v) { json.put("decoded", v) }
+    var separated: Boolean
+        get() = json.optBoolean("separated")
+        set(v) { json.put("separated", v) }
+}
 
 /** The whole pipeline: get the media → decode → separate → encode → save to the gallery. */
 object Engine {
@@ -49,78 +89,115 @@ object Engine {
         if (cancelled()) throw CancelledException()
     }
 
-    fun run(ctx: Context, mode: Mode, url: String?, uri: Uri?, model: Model) {
-        val work = File(ctx.cacheDir, "job").apply { deleteRecursively(); mkdirs() }
+    private fun workDir(ctx: Context) = File(ctx.filesDir, "job")
+
+    /** An interrupted job waiting to be resumed, with its title (may be empty). */
+    fun pending(ctx: Context): Pair<JobSpec, String>? {
+        val jf = JobFile(workDir(ctx))
+        if (!jf.exists()) return null
+        val spec = jf.spec ?: return null
+        return spec to jf.title
+    }
+
+    fun discardPending(ctx: Context) {
+        if (!JobRepo.state.value.running) workDir(ctx).deleteRecursively()
+    }
+
+    /** Start [spec] from scratch, or (spec == null) resume the saved job. */
+    fun run(ctx: Context, newSpec: JobSpec?) {
+        val work = workDir(ctx)
+        if (newSpec != null) {
+            work.deleteRecursively(); work.mkdirs()
+            JobFile(work).apply { spec = newSpec; save() }
+        }
+        val jf = JobFile(work)
+        val spec = jf.spec
+        if (spec == null) { work.deleteRecursively(); JobRepo.update { JobState() }; return }
+        val resumed = newSpec == null
         JobRepo.cancel = false
         try {
-            JobRepo.update { JobState(running = true, stage = "جاري تجهيز المحرك…") }
+            JobRepo.update { JobState(running = true, stage = "جاري تجهيز المحرك…", title = jf.title, resumed = resumed) }
             AzlApp.awaitReady()
             AzlApp.initError?.let { throw UserError("تعذّر تشغيل المحرك: ${it.message}") }
 
-            // 1) source file
-            val (input, title) = if (url != null) download(url, mode, work) else copyLocal(ctx, uri!!, work)
+            // 1) source file (a half-downloaded link continues where it stopped)
+            val input = File(work, jf.input).takeIf { jf.input.isNotEmpty() && it.isFile } ?: run {
+                val (file, title) = if (spec.url != null) download(spec.url, spec.mode, work) else copyLocal(ctx, spec.uri!!, work)
+                jf.input = file.name; jf.title = title; jf.save()
+                file
+            }
+            val title = jf.title
             JobRepo.update { it.copy(title = title) }
             checkCancel()
 
-            // 2) decode audio to raw PCM
+            // 2) decode audio to raw PCM (skipped if it was already done)
             val probe = Ffmpeg.probe(ctx, input)
             if (!probe.hasAudio) throw UserError("الملف ما فيه صوت")
-            JobRepo.update { it.copy(step = 1, stage = "جاري قراءة الصوت…", eta = "", progress = 0f) }
             val mixPcm = File(work, "mix.pcm")
-            val (code, log) = Ffmpeg.run(ctx, listOf("-y", "-i", input.path, "-vn", "-f", "f32le",
-                "-ac", "2", "-ar", "44100", mixPcm.path), probe.duration) { p ->
-                JobRepo.update { it.copy(progress = p) }
+            if (!jf.decoded || !mixPcm.isFile) {
+                JobRepo.update { it.copy(step = 1, stage = "جاري قراءة الصوت…", eta = "", progress = 0f) }
+                val (code, log) = Ffmpeg.run(ctx, listOf("-y", "-i", input.path, "-vn", "-f", "f32le",
+                    "-ac", "2", "-ar", "44100", mixPcm.path), probe.duration) { p ->
+                    JobRepo.update { it.copy(progress = p) }
+                }
+                if (code != 0 || mixPcm.length() == 0L) throw RuntimeException("decode failed: $log")
+                jf.decoded = true; jf.save()
             }
-            if (code != 0 || mixPcm.length() == 0L) throw RuntimeException("decode failed: $log")
             checkCancel()
 
             // 3) model (downloaded once)
-            if (!ModelManager.ready(ctx, model)) {
-                val mb = model.size / 1_000_000
-                JobRepo.update { it.copy(stage = "جاري تحميل نموذج العزل ($mb ميقا، أول مرة بس)…", progress = 0f) }
-                ModelManager.ensure(ctx, model, { p -> JobRepo.update { it.copy(progress = p) } }, ::cancelled)
+            if (!ModelManager.ready(ctx, spec.model)) {
+                val mb = spec.model.size / 1_000_000
+                JobRepo.update { it.copy(step = 1, stage = "جاري تحميل نموذج العزل ($mb ميقا، أول مرة بس)…", progress = 0f) }
+                ModelManager.ensure(ctx, spec.model, { p -> JobRepo.update { it.copy(progress = p) } }, ::cancelled)
             }
 
-            // 4) separate
-            JobRepo.update { it.copy(step = 2, stage = "جاري عزل الصوت عن الموسيقى…", eta = "", progress = 0f) }
+            // 4) separate, chunk by chunk; after an interruption it carries on from the last finished chunk
             val voicePcm = File(work, "voice.pcm")
             val musicPcm = File(work, "music.pcm")
-            val voicePeaks = FloatArray(PEAKS)
-            val musicPeaks = FloatArray(PEAKS)
-            MdxSeparator(ModelManager.file(ctx, model).path, model.nFft, model.dimF).use { sep ->
-                PcmFileSource(mixPcm).use { src ->
-                    PcmFileWriter(voicePcm).use { vw ->
-                        PcmFileWriter(musicPcm).use { mw ->
-                            val t0 = System.currentTimeMillis()
-                            val total = src.frames.coerceAtLeast(1)
-                            var pos = 0L
-                            sep.separate(src, { v, m, n ->
-                                vw.write(v, n); mw.write(m, n)
-                                addPeaks(voicePeaks, v, n, pos, total)
-                                addPeaks(musicPeaks, m, n, pos, total)
-                                pos += n
-                            }, { p ->
-                                val left = ((System.currentTimeMillis() - t0) / 1000.0 * (1 - p) / p).toLong()
-                                JobRepo.update { it.copy(progress = p, eta = fmtEta(left)) }
-                            }, ::cancelled)
+            if (!jf.separated) {
+                JobRepo.update { it.copy(step = 2, stage = "جاري عزل الصوت عن الموسيقى…", eta = "", progress = 0f) }
+                MdxSeparator(ModelManager.file(ctx, spec.model).path, spec.model.nFft, spec.model.dimF).use { sep ->
+                    val gen = sep.framesPerChunk.toLong()
+                    val doneFrames = if (voicePcm.isFile && musicPcm.isFile) minOf(voicePcm.length(), musicPcm.length()) / 8 else 0L
+                    val startChunk = (doneFrames / gen).toInt()
+                    truncate(voicePcm, startChunk * gen * 8)
+                    truncate(musicPcm, startChunk * gen * 8)
+                    if (startChunk > 0) JobRepo.update { it.copy(stage = "نكمّل العزل من وين وقف…") }
+                    PcmFileSource(mixPcm).use { src ->
+                        PcmFileWriter(voicePcm, append = true).use { vw ->
+                            PcmFileWriter(musicPcm, append = true).use { mw ->
+                                val t0 = System.currentTimeMillis()
+                                val chunks = sep.chunkCount(src.frames)
+                                sep.separate(src, { v, m, n ->
+                                    vw.write(v, n); mw.write(m, n)
+                                    vw.flush(); mw.flush()   // what is on disk is what we can resume from
+                                }, { p ->
+                                    val doneNow = p - startChunk.toFloat() / chunks
+                                    val left = if (doneNow > 0) ((System.currentTimeMillis() - t0) / 1000.0 * (1 - p) / doneNow).toLong() else 0
+                                    JobRepo.update { it.copy(progress = p, eta = if (left > 0) fmtEta(left) else "") }
+                                }, ::cancelled, startChunk)
+                            }
                         }
                     }
                 }
+                jf.separated = true; jf.save()
             }
             mixPcm.delete()
             checkCancel()
 
             // 5) encode
             JobRepo.update { it.copy(step = 3, stage = "جاري حفظ الملفات…", eta = "", progress = -1f) }
+            val voicePeaks = peaksOf(voicePcm)
+            val musicPeaks = peaksOf(musicPcm)
             val voiceMp3 = File(work, "voice.mp3")
             val musicMp3 = File(work, "music.mp3")
             encodeMp3(ctx, voicePcm, voiceMp3)
             encodeMp3(ctx, musicPcm, musicMp3)
-            voicePcm.delete(); musicPcm.delete()
 
             var video: File? = null
             val wantVideo = ctx.getSharedPreferences("azl", Context.MODE_PRIVATE).getBoolean("make_video", true)
-            if (mode == Mode.SPEECH && probe.hasVideo && wantVideo) {
+            if (spec.mode == Mode.SPEECH && probe.hasVideo && wantVideo) {
                 video = File(work, "video.mp4")
                 val base = listOf("-y", "-i", input.path, "-i", voiceMp3.path, "-map", "0:v:0", "-map", "1:a:0",
                     "-shortest", "-movflags", "+faststart")
@@ -136,7 +213,7 @@ object Engine {
             }
             checkCancel()
 
-            // 6) gallery
+            // 6) gallery: the video first
             val name = safeName(title)
             val results = mutableListOf<ResultItem>()
             video?.let {
@@ -144,11 +221,11 @@ object Engine {
                     MediaSaver.save(ctx, it, "$name - بدون موسيقى.mp4", "video/mp4", true), "video/mp4")
             }
             results += ResultItem("الصوت البشري فقط",
-                MediaSaver.save(ctx, voiceMp3, "$name - صوت.mp3", "audio/mpeg", false), "audio/mpeg", normalize(voicePeaks))
+                MediaSaver.save(ctx, voiceMp3, "$name - صوت.mp3", "audio/mpeg", false), "audio/mpeg", voicePeaks)
             results += ResultItem("الموسيقى فقط",
-                MediaSaver.save(ctx, musicMp3, "$name - موسيقى.mp3", "audio/mpeg", false), "audio/mpeg", normalize(musicPeaks))
+                MediaSaver.save(ctx, musicMp3, "$name - موسيقى.mp3", "audio/mpeg", false), "audio/mpeg", musicPeaks)
 
-            History.add(ctx, HistoryEntry(System.currentTimeMillis(), title, mode, results))
+            History.add(ctx, HistoryEntry(System.currentTimeMillis(), title, spec.mode, results))
             JobRepo.update { it.copy(running = false, stage = "تم ✓", eta = "", progress = 1f, results = results) }
         } catch (e: CancelledException) {
             JobRepo.update { JobState(running = false, error = "تم الإلغاء") }
@@ -160,8 +237,15 @@ object Engine {
             else "صار خطأ أثناء المعالجة: ${e.message?.take(200) ?: e.javaClass.simpleName}"
             JobRepo.update { JobState(running = false, error = msg) }
         } finally {
+            // finished, failed or cancelled: nothing to resume. (If Android kills the app, this never runs,
+            // so the folder stays and the job can carry on.)
             work.deleteRecursively()
         }
+    }
+
+    private fun truncate(f: File, bytes: Long) {
+        if (!f.exists()) return
+        if (f.length() > bytes) RandomAccessFile(f, "rw").use { it.setLength(bytes) }
     }
 
     private fun encodeMp3(ctx: Context, pcm: File, out: File) {
@@ -243,12 +327,36 @@ object Engine {
 
     private const val PEAKS = 160
 
-    private fun addPeaks(peaks: FloatArray, samples: FloatArray, n: Int, start: Long, total: Long) {
-        for (i in 0 until n) {
-            val b = ((start + i) * PEAKS / total).toInt().coerceIn(0, PEAKS - 1)
-            val a = maxOf(kotlin.math.abs(samples[2 * i]), kotlin.math.abs(samples[2 * i + 1]))
-            if (a > peaks[b]) peaks[b] = a
+    /** Loudness per slice of a raw f32le stereo file, for the waveform. */
+    private fun peaksOf(f: File): FloatArray {
+        val peaks = FloatArray(PEAKS)
+        val total = (f.length() / 8).coerceAtLeast(1)
+        val buf = ByteArray(1 shl 20)
+        var frame = 0L
+        f.inputStream().buffered(1 shl 20).use { input ->
+            while (true) {
+                val n = input.readNBytesCompat(buf)
+                if (n <= 0) break
+                val fb = java.nio.ByteBuffer.wrap(buf, 0, n - n % 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+                while (fb.remaining() >= 2) {
+                    val v = maxOf(kotlin.math.abs(fb.get()), kotlin.math.abs(fb.get()))
+                    val bkt = (frame * PEAKS / total).toInt().coerceIn(0, PEAKS - 1)
+                    if (v > peaks[bkt]) peaks[bkt] = v
+                    frame++
+                }
+            }
         }
+        return normalize(peaks)
+    }
+
+    private fun java.io.InputStream.readNBytesCompat(buf: ByteArray): Int {
+        var off = 0
+        while (off < buf.size) {
+            val n = read(buf, off, buf.size - off)
+            if (n < 0) break
+            off += n
+        }
+        return off
     }
 
     private fun normalize(p: FloatArray): FloatArray {
